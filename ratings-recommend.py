@@ -131,6 +131,27 @@ def run_regression(train_set, test_set):
     test_rmse = np.sqrt(np.mean(((predictions - test_ratings) ** 2)))
     test_mae = np.mean(np.abs(predictions - test_ratings))
     return test_rmse, test_mae, 0, 0
+
+def reform_matrix(ratings):
+    unique_users = np.unique(ratings[:,0])
+    unique_items = np.unique(ratings[:,1])
+    user_dict = dict()
+    user_index = 0
+    for user in unique_users:
+        user_dict[user] = user_index
+        user_index += 1
+    
+    item_dict = dict()
+    item_index = 0
+    for item in unique_items:
+        item_dict[item] = item_index
+        item_index += 1
+    sparse_matrix = np.empty([len(user_dict), len(item_dict)])
+    for row in ratings:
+        sparse_matrix[user_dict[row[0]], item_dict[row[1]]] = row[2]
+    
+    return sparse_matrix
     
 #train_ratings = train_set[:,2]
 cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+sparse_matrix = reform_matrix(load_data('./ml-1m/ratings.dat'))
