@@ -165,7 +165,7 @@ def update(U, M, X, X_est, lrate, regcof):
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
-                eij = X[i][j] - X_est[i][j]
+                eij = X[i][j] - np.dot(U[i,:],M[:,j])
                 U[i,:] = U[i,:] + (lrate * (2 * eij * M[:,j] - regcof * U[i,:]))
                 M[:,j] = M[:,j] + (lrate * (2 * eij * U[i,:] - regcof * M[:,j]))
     X_est = np.matmul(U, M)
@@ -176,7 +176,7 @@ def update(U, M, X, X_est, lrate, regcof):
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
-                SE += (X[i][j] - X_est[i][j]) ** 2
+                SE += (X[i][j] - np.dot(U[i,:],M[:,j])) ** 2
                 calculations += 1
     MSE = SE / calculations
     RMSE = np.sqrt(MSE)
