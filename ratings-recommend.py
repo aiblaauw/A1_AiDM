@@ -161,18 +161,16 @@ def initialize_matrices(num_users, num_items, num_features):
     return U, M
 
 def update(U, M, X, X_est, lrate, regcof):
-    print(U[0])
-    print(M[0])
-    print(X[0])
-    print(X_est[0])
+    num_updates = 0
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
                 eij = X[i][j] - X_est[i][j]
-                for k in range(len(U[0])):
-                    U[i][k] = U[i][k] + lrate * (2 * eij * M[k][j] - regcof * U[i][k])
-                    M[k][j] = M[k][j] + lrate * (2 * eij * U[i][k] - regcof * M[k][j])
+                U[i,:] = U[i,:] + (lrate * (2 * eij * M[:,j] - regcof * U[i,:]))
+                M[:,j] = M[:,j] + (lrate * (2 * eij * U[i,:] - regcof * M[:,j]))
     X_est = np.matmul(U, M)
+
+    X_est = (((X_est - np.amin(X_est)) * 4) / (np.amax(X_est) - np.amin(X_est))) + 1
     SE = 0
     calculations = 0
     for i in range(len(X)):
@@ -181,12 +179,11 @@ def update(U, M, X, X_est, lrate, regcof):
                 SE += (X[i][j] - X_est[i][j]) ** 2
                 calculations += 1
     MSE = SE / calculations
-    print(MSE)
     RMSE = np.sqrt(MSE)
     print('RMSE after this iteration: ', RMSE)
     return RMSE, U, M, X_est
 
-def run(num_users, num_items, num_features, X, num_iterations, lrate, regcof):
+def run_matrix_fac(num_users, num_items, num_features, X, num_iterations, lrate, regcof):
     U, M = initialize_matrices(num_users, num_items, num_features)
     X_est = np.matmul(U, M)
     for i in range(num_iterations):
@@ -198,4 +195,4 @@ def run(num_users, num_items, num_features, X, num_iterations, lrate, regcof):
 #train_ratings = train_set[:,2]
 #cross_validate(load_data('./ml-1m/ratings.dat'), 5)
 X = reform_matrix(load_data('./ml-1m/ratings.dat'))
-run(6040, 3706, 10, X, 100, 0.00005, 0.05)   
+run_matrix_fac(6040, 3706, 10, X, 100, 0.005, 0.05)   
