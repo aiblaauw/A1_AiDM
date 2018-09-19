@@ -132,6 +132,9 @@ def run_regression(train_set, test_set):
     test_mae = np.mean(np.abs(predictions - test_ratings))
     return test_rmse, test_mae, 0, 0
 
+'''
+Creates IxJ matrix which contains all the ratings and movies, also those not rated by some user 
+'''
 def reform_matrix(ratings):
     unique_users = np.unique(ratings[:,0])
     unique_items = np.unique(ratings[:,1])
@@ -152,6 +155,47 @@ def reform_matrix(ratings):
     
     return sparse_matrix
     
+def initialize_matrices(num_users, num_items, num_features):
+    U = np.random.rand(num_users, num_features)
+    M = np.random.rand(num_features, num_items)
+    return U, M
+
+def update(U, M, X, X_est, lrate, regcof):
+    print(U[0])
+    print(M[0])
+    print(X[0])
+    print(X_est[0])
+    for i in range(len(X)):
+        for j in range(len(X[i])):
+            if X[i][j] > 0:
+                eij = X[i][j] - X_est[i][j]
+                for k in range(len(U[0])):
+                    U[i][k] = U[i][k] + lrate * (2 * eij * M[k][j] - regcof * U[i][k])
+                    M[k][j] = M[k][j] + lrate * (2 * eij * U[i][k] - regcof * M[k][j])
+    X_est = np.matmul(U, M)
+    SE = 0
+    calculations = 0
+    for i in range(len(X)):
+        for j in range(len(X[i])):
+            if X[i][j] > 0:
+                SE += (X[i][j] - X_est[i][j]) ** 2
+                calculations += 1
+    MSE = SE / calculations
+    print(MSE)
+    RMSE = np.sqrt(MSE)
+    print('RMSE after this iteration: ', RMSE)
+    return RMSE, U, M, X_est
+
+def run(num_users, num_items, num_features, X, num_iterations, lrate, regcof):
+    U, M = initialize_matrices(num_users, num_items, num_features)
+    X_est = np.matmul(U, M)
+    for i in range(num_iterations):
+        RMSE, U, M, X_est = update(U, M, X, X_est, lrate, regcof)
+        
+    
+    
+
 #train_ratings = train_set[:,2]
-cross_validate(load_data('./ml-1m/ratings.dat'), 5)
-sparse_matrix = reform_matrix(load_data('./ml-1m/ratings.dat'))
+#cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+X = reform_matrix(load_data('./ml-1m/ratings.dat'))
+run(6040, 3706, 10, X, 100, 0.00005, 0.05)   
