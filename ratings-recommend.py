@@ -13,13 +13,7 @@ location = "./ml-1m/ratings.dat"
 np.random.seed(42)
 
 def load_data(location):
-    ratings=[]
-    f = open(location, 'r')
-    for line in f:
-        data = line.split('::')
-        ratings.append([int(z) for z in data[:3]])
-    f.close()
-    ratings=np.array(ratings)
+    ratings = np.genfromtxt(location, usecols=(0, 1, 2), delimiter="::", dtype="int")
     return ratings
 
 folds = 5
