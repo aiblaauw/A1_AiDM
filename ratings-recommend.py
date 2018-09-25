@@ -1,18 +1,24 @@
 # -*- coding: utf-8 -*-
 """
-Spyder Editor
+Assignment 1: Recommender systems,
+Differences for different approaches to recommender systems were evaluated.
 
-This is a temporary script file.
+Testing two model-based  collaborative filtering techniques;
+- Linear combination of the item-averages and user-averages
+- Matrix factorization with gradient descent and regularization 
+
+Accuracy was evaluated by RMSE and MAE error metrics, 
+combined with n-fold cross validation for testing flexibility of the models
 """
 
 import numpy as np
-import os
+
 
 '''
 Used to set location of the data
 '''
-os.chdir('C:/Users/Gebruiker/documents/leiden/advances in data mining')
-location = "./ml-1m/ratings.dat"
+#os.chdir('C:/Users/Gebruiker/documents/leiden/advances in data mining')
+location = "ratings.dat"
 np.random.seed(42)
 
 
@@ -315,9 +321,9 @@ def cross_validate_matrix(X):
     
 
 # Use cross validate for everything but the matrix factorization
-test_rmse, train_rmse, test_mae, train_mae = cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+test_rmse, train_rmse, test_mae, train_mae = cross_validate(load_data(location), 5)
 
 # Use this to run matrix factorization
-X = reform_matrix(load_data('./ml-1m/ratings.dat'))
+X = reform_matrix(load_data(location))
 cross_validate_matrix(X)
 
