@@ -33,6 +33,7 @@ def cross_validate(ratings, folds):
         fold_test_rmse, fold_test_mae, fold_train_rmse, fold_train_mae = run_regression(train_set, test_set)
         test_rmse += fold_test_rmse
         train_rmse += fold_train_rmse
+        rmses.append(test_rmse)
         test_mae += fold_test_mae
         train_mae += fold_train_mae
     mean_test_rmse = test_rmse / folds
@@ -42,11 +43,13 @@ def cross_validate(ratings, folds):
     return mean_test_rmse, mean_train_rmse, mean_test_mae, mean_train_mae
         
     
-def global_average(ratings):
-    ratings = ratings[:,2]
-    mean_rating = np.mean(ratings)
-    predictions = np.full(len(ratings), mean_rating)
-    return predictions
+def global_average(train_ratings, test_ratings):
+    test_ratings = test_ratings[:,2]
+    train_ratings = train_ratings[:,2]
+    mean_rating = np.mean(train_ratings)
+    test_predictions = np.full(len(test_ratings), mean_rating)
+    train_predictions = np.full(len(train_ratings), mean_rating)
+    return test_predictions, train_predictions
 
 def get_item_avg(ratings):
     unique, counts = np.unique(ratings[:,1], return_counts = True)
@@ -54,6 +57,7 @@ def get_item_avg(ratings):
     for x in zip(unique, counts): 
         item_avg = np.mean(ratings[np.where(ratings[:,1]==x[0])][:,2])
         item_avgs[x[0]] = item_avg
+    item_avgs['global'] = np.mean(ratings[:,2])
     return item_avgs
 
 def get_user_avg(ratings):
@@ -62,26 +66,46 @@ def get_user_avg(ratings):
     for x in zip(unique, counts): 
         user_avg = np.mean(ratings[np.where(ratings[:,0]==x[0])][:,2])
         user_avgs[x[0]] = user_avg
+    user_avgs['global'] = np.mean(ratings[:,2])
     return user_avgs
 
-def average_item(ratings):
-    item_avgs = get_item_avg(ratings)
+def average_item(train_ratings, test_ratings):
+    item_avgs = get_item_avg(train_ratings)
     
-    predictions = list()
-    for item in ratings[:,1]:
-        predictions.append(item_avgs[item])
-    predictions = np.array(predictions)
-    return predictions
-
-
-def average_user(ratings):
-    user_avgs = get_user_avg(ratings)
+    test_predictions = list()
+    for item in test_ratings[:,1]:
+        if item in item_avgs:
+            test_predictions.append(item_avgs[item])
+        else:
+            test_predictions.append(item_avgs['global'])
+    test_predictions = np.array(test_predictions)
     
-    predictions = list()
-    for item in ratings[:,0]:
-        predictions.append(user_avgs[item])
-    predictions = np.array(predictions)
-    return predictions
+    train_predictions = list()
+    for item in train_ratings[:,1]:
+        train_predictions.append(item_avgs[item])
+        if item not in item_avgs:
+            train_predictions.append(item_avgs['global'])
+    train_predictions = np.array(train_predictions)
+    return test_predictions, train_predictions
+
+def average_user(train_ratings, test_ratings):
+    user_avgs = get_user_avg(train_ratings)
+    
+    test_predictions = list()
+    for user in test_ratings[:,1]:
+        if user in user_avgs:
+            test_predictions.append(user_avgs[user])
+        else:
+            test_predictions.append(user_avgs['global'])
+    test_predictions = np.array(test_predictions)
+    
+    train_predictions = list()
+    for user in train_ratings[:,1]:
+        train_predictions.append(user_avgs[user])
+        if user not in user_avgs:
+            train_predictions.append(user_avgs['global'])
+    train_predictions = np.array(train_predictions)
+    return test_predictions, train_predictions
 
 def train_regression(ratings):
     user_avgs = get_user_avg(ratings)
@@ -108,11 +132,10 @@ def predict_regression(ratings, alpha, beta, gamma):
     return np.array(predictions)
 
 def run(train_ratings, test_ratings):
-    test_predictions = average_user(test_ratings)
+    test_predictions, train_predictions = average_user(train_ratings, test_ratings)
     test_ratings = test_ratings[:, 2]
     test_rmse = np.sqrt(np.mean(((test_predictions - test_ratings) ** 2)))
     test_mae = np.mean(np.abs(test_predictions - test_ratings))
-    train_predictions = average_user(train_ratings)
     train_ratings = train_ratings[:, 2]
     train_rmse = np.sqrt(np.mean(((train_predictions - train_ratings) ** 2)))
     train_mae = np.mean(np.abs(train_predictions - train_ratings))
@@ -120,11 +143,15 @@ def run(train_ratings, test_ratings):
 
 def run_regression(train_set, test_set):
     alpha, beta, gamma = train_regression(train_set)
-    predictions = predict_regression(test_set, alpha, beta, gamma)
+    test_predictions = predict_regression(test_set, alpha, beta, gamma)
     test_ratings = test_set[:, 2]
-    test_rmse = np.sqrt(np.mean(((predictions - test_ratings) ** 2)))
-    test_mae = np.mean(np.abs(predictions - test_ratings))
-    return test_rmse, test_mae, 0, 0
+    test_rmse = np.sqrt(np.mean(((test_predictions - test_ratings) ** 2)))
+    test_mae = np.mean(np.abs(test_predictions - test_ratings))
+    train_predictions = predict_regression(train_set, alpha, beta, gamma)
+    train_ratings = train_set[:, 2]
+    train_rmse = np.sqrt(np.mean(((train_predictions - train_ratings) ** 2)))
+    train_mae = np.mean(np.abs(train_predictions - train_ratings))
+    return test_rmse, test_mae, train_rmse, train_mae
 
 '''
 Creates IxJ matrix which contains all the ratings and movies, also those not rated by some user 
@@ -154,8 +181,7 @@ def initialize_matrices(num_users, num_items, num_features):
     M = np.random.rand(num_features, num_items)
     return U, M
 
-def update(U, M, X, X_est, lrate, regcof):
-    num_updates = 0
+def update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, train_set):
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
@@ -163,30 +189,70 @@ def update(U, M, X, X_est, lrate, regcof):
                 U[i,:] = U[i,:] + (lrate * (2 * eij * M[:,j] - regcof * U[i,:]))
                 M[:,j] = M[:,j] + (lrate * (2 * eij * U[i,:] - regcof * M[:,j]))
     X_est = np.matmul(U, M)
-
-    X_est = (((X_est - np.amin(X_est)) * 4) / (np.amax(X_est) - np.amin(X_est))) + 1
+    '''
+    #X_est = (((X_est - np.amin(X_est)) * 4) / (np.amax(X_est) - np.amin(X_est))) + 1
     SE = 0
     calculations = 0
+    test_SE = 0
+    test_calculations = 0
     for i in range(len(X)):
         for j in range(len(X[i])):
-            if X[i][j] > 0:
-                SE += (X[i][j] - np.dot(U[i,:],M[:,j])) ** 2
+            if X[i][j] > 0 and [i, j] not in test_set.T.tolist():
+                SE += (X[i][j] - X_est[i][j]) ** 2
                 calculations += 1
+            elif X[i][j] > 0 and [i, j] in test_set.T.tolist():
+                test_SE += (X[i][j] - X_est[i][j]) ** 2
+                test_calculations += 1
     MSE = SE / calculations
     RMSE = np.sqrt(MSE)
-    print('RMSE after this iteration: ', RMSE)
-    return RMSE, U, M, X_est
+    test_MSE = test_SE / test_calculations
+    test_RMSE = np.sqrt(test_MSE)
+    '''
+    test_predictions = np.array([X_est[i][j] for i, j in test_set.T])
+    train_predictions = np.array([X_est[i][j] for i, j in train_set.T])
+    RMSE = np.sqrt(np.mean(((test_predictions - test_values) ** 2)))
+    MAE = np.mean(np.abs(test_predictions - test_values))
+    train_RMSE = np.sqrt(np.mean(((train_predictions - train_values) ** 2)))
+    train_MAE = np.mean(np.abs(train_predictions - train_values))
+    return train_RMSE, train_MAE, RMSE, MAE, U, M, X_est
 
-def run_matrix_fac(num_users, num_items, num_features, X, num_iterations, lrate, regcof):
+def run_matrix_fac(num_users, num_items, num_features, X, num_iterations, lrate, regcof, test_values, test_set, train_values, train_set):
     U, M = initialize_matrices(num_users, num_items, num_features)
     X_est = np.matmul(U, M)
     for i in range(num_iterations):
-        RMSE, U, M, X_est = update(U, M, X, X_est, lrate, regcof)
+        train_RMSE, train_MAE, RMSE, MAE, U, M, X_est = update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, train_set)
+    return train_RMSE, train_MAE, RMSE, MAE
         
-    
+def cross_validate_matrix(X):
+    ratings = np.array(X.nonzero())
+    sequences = [x % folds for x in range(len(ratings[0]))]
+    np.random.shuffle(sequences)
+    sum_t_RMSE = 0
+    sum_t_MAE = 0
+    for fold in range(folds):
+            test_select = [x == fold for x in sequences]
+            test_set = ratings[:, test_select]
+            test_values = np.array([X[i][j] for i,j in test_set.T])
+            train_select = [x != fold for x in sequences]
+            train_set = ratings[:, train_select]
+            train_values = np.array([X[i][j] for i,j in train_set.T])
+            for i,j in test_set.T:
+                X[i][j] = 0
+            fold_t_RMSE, fold_t_MAE, fold_RMSE, fold_MAE = run_matrix_fac(len(X), len(X[0]), 10, X, 75, 0.005, 0.05, test_values, test_set, train_values, train_set)
+            print('RMSE of this fold is %5f and MAE this fold is %5f' % (fold_RMSE, fold_MAE))
+            sum_t_RMSE += fold_t_RMSE
+            sum_t_MAE += fold_t_MAE
+    train_RMSE = sum_t_RMSE / 5
+    train_MAE = sum_t_MAE / 5        
+    print('Training RMSE is %5f, training MAE is %5f' % (train_RMSE, train_MAE))
     
 
 #train_ratings = train_set[:,2]
-#cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+#test_rmse, train_rmse, test_mae, train_mae = cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+#msefile = open('mseresults.txt', 'a')
+#maefile = open('maeresults.txt', 'a')
 X = reform_matrix(load_data('./ml-1m/ratings.dat'))
-run_matrix_fac(6040, 3706, 10, X, 100, 0.005, 0.05)   
+cross_validate_matrix(X)
+#msefile.close()
+#maefile.close()
+#run_matrix_fac(6040, 3706, 10, X, 100, 0.005, 0.05)   
