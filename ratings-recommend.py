@@ -8,16 +8,33 @@ This is a temporary script file.
 import numpy as np
 import os
 
+'''
+Used to set location of the data
+'''
 os.chdir('C:/Users/Gebruiker/documents/leiden/advances in data mining')
 location = "./ml-1m/ratings.dat"
 np.random.seed(42)
 
+
+'''
+Loads the data into a numpy array
+'''
 def load_data(location):
     ratings = np.genfromtxt(location, usecols=(0, 1, 2), delimiter="::", dtype="int")
     return ratings
 
+'''
+Number of folds in k-fold cross validation
+'''
 folds = 5
 
+
+'''
+Divides the data in to 5 folds and assigns one of these five to be test and the other four to be training
+Computes errors and determines the average error over the five times it's run
+use run_regression(train_set, test_set) for the approach using regression
+use run(train_set, test_set) for the three approaches using an average
+'''
 def cross_validate(ratings, folds):
     sequences = [x % folds for x in range(len(ratings))]
     np.random.shuffle(sequences)
@@ -33,7 +50,6 @@ def cross_validate(ratings, folds):
         fold_test_rmse, fold_test_mae, fold_train_rmse, fold_train_mae = run_regression(train_set, test_set)
         test_rmse += fold_test_rmse
         train_rmse += fold_train_rmse
-        rmses.append(test_rmse)
         test_mae += fold_test_mae
         train_mae += fold_train_mae
     mean_test_rmse = test_rmse / folds
@@ -42,7 +58,9 @@ def cross_validate(ratings, folds):
     mean_train_mae = train_mae / folds
     return mean_test_rmse, mean_train_rmse, mean_test_mae, mean_train_mae
         
-    
+'''
+Computes the global average and makes predictions for the train and the test set
+'''  
 def global_average(train_ratings, test_ratings):
     test_ratings = test_ratings[:,2]
     train_ratings = train_ratings[:,2]
@@ -51,6 +69,9 @@ def global_average(train_ratings, test_ratings):
     train_predictions = np.full(len(train_ratings), mean_rating)
     return test_predictions, train_predictions
 
+'''
+Gets the average for each item and puts it into a dictionary
+'''
 def get_item_avg(ratings):
     unique, counts = np.unique(ratings[:,1], return_counts = True)
     item_avgs = dict()
@@ -60,6 +81,9 @@ def get_item_avg(ratings):
     item_avgs['global'] = np.mean(ratings[:,2])
     return item_avgs
 
+'''
+Gets the average for each user and puts it into a dictionary
+'''
 def get_user_avg(ratings):
     unique, counts = np.unique(ratings[:,0], return_counts = True)
     user_avgs = dict()
@@ -69,6 +93,9 @@ def get_user_avg(ratings):
     user_avgs['global'] = np.mean(ratings[:,2])
     return user_avgs
 
+'''
+Predicts based on the average value for each item
+'''
 def average_item(train_ratings, test_ratings):
     item_avgs = get_item_avg(train_ratings)
     
@@ -88,6 +115,9 @@ def average_item(train_ratings, test_ratings):
     train_predictions = np.array(train_predictions)
     return test_predictions, train_predictions
 
+'''
+Predicts based on the average value for each user
+'''
 def average_user(train_ratings, test_ratings):
     user_avgs = get_user_avg(train_ratings)
     
@@ -107,6 +137,9 @@ def average_user(train_ratings, test_ratings):
     train_predictions = np.array(train_predictions)
     return test_predictions, train_predictions
 
+'''
+Trains the regression coefficients alpha, beta and gamma, takes only the training set as input
+'''
 def train_regression(ratings):
     user_avgs = get_user_avg(ratings)
     item_avgs = get_item_avg(ratings)
@@ -118,6 +151,9 @@ def train_regression(ratings):
     alpha, beta, gamma = np.linalg.lstsq(averages, ratings[:,2], rcond=None)[0]
     return alpha, beta, gamma
 
+'''
+Predicts ratings based on the regression coefficients and averages
+'''
 def predict_regression(ratings, alpha, beta, gamma):    
     user_avgs = get_user_avg(ratings)
     item_avgs = get_item_avg(ratings)
@@ -131,6 +167,12 @@ def predict_regression(ratings, alpha, beta, gamma):
         predictions.append(prediction)
     return np.array(predictions)
 
+'''
+Used to run one fold of the approaches using averages and returns the errors for the fold
+global_average(train_ratings, test_ratings) for global average
+average_item(train_ratings, test_ratings) for item averages
+average_user(train_ratings, test_ratings) for user averages
+'''  
 def run(train_ratings, test_ratings):
     test_predictions, train_predictions = average_user(train_ratings, test_ratings)
     test_ratings = test_ratings[:, 2]
@@ -141,6 +183,9 @@ def run(train_ratings, test_ratings):
     train_mae = np.mean(np.abs(train_predictions - train_ratings))
     return test_rmse, test_mae, train_rmse, train_mae
 
+'''
+Used to run one fold of the regression approach and returns the errors for the fold
+'''
 def run_regression(train_set, test_set):
     alpha, beta, gamma = train_regression(train_set)
     test_predictions = predict_regression(test_set, alpha, beta, gamma)
@@ -176,16 +221,32 @@ def reform_matrix(ratings):
     
     return sparse_matrix
     
+'''
+Initialize matrices U and M randomly from a uniform distribution
+'''
 def initialize_matrices(num_users, num_items, num_features):
     U = np.random.rand(num_users, num_features)
     M = np.random.rand(num_features, num_items)
     return U, M
 
+'''
+Compute the errors, gradients and update the rows and columns of the matrix with estimates and feature matrices U and M
+U = Feature matrix for Users
+M = Feature matrix for Items
+X = Sparse matrix containing all ratings
+X_est = Matrix containing all the estimated ratings
+lrate = Learning rate
+regcof = Reguralization coefficient
+test_values = values present in the test set
+test_set = coordinates of items belonging to the test set
+train_values = values present in the training set
+train_set = coordinates of items belonging to the training set
+'''
 def update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, train_set):
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
-                eij = X[i][j] - np.dot(U[i,:],M[:,j])
+                eij = X[i][j] - np.dot(U[i,:], M[:,j])
                 U[i,:] = U[i,:] + (lrate * (2 * eij * M[:,j] - regcof * U[i,:]))
                 M[:,j] = M[:,j] + (lrate * (2 * eij * U[i,:] - regcof * M[:,j]))
     X_est = np.matmul(U, M)
@@ -216,13 +277,19 @@ def update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, t
     train_MAE = np.mean(np.abs(train_predictions - train_values))
     return train_RMSE, train_MAE, RMSE, MAE, U, M, X_est
 
+'''
+Runs the matrix factorization for a set number of iterations
+'''
 def run_matrix_fac(num_users, num_items, num_features, X, num_iterations, lrate, regcof, test_values, test_set, train_values, train_set):
     U, M = initialize_matrices(num_users, num_items, num_features)
     X_est = np.matmul(U, M)
     for i in range(num_iterations):
         train_RMSE, train_MAE, RMSE, MAE, U, M, X_est = update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, train_set)
     return train_RMSE, train_MAE, RMSE, MAE
-        
+
+'''
+Cross validation for matrix factorization
+'''  
 def cross_validate_matrix(X):
     ratings = np.array(X.nonzero())
     sequences = [x % folds for x in range(len(ratings[0]))]
@@ -247,12 +314,10 @@ def cross_validate_matrix(X):
     print('Training RMSE is %5f, training MAE is %5f' % (train_RMSE, train_MAE))
     
 
-#train_ratings = train_set[:,2]
-#test_rmse, train_rmse, test_mae, train_mae = cross_validate(load_data('./ml-1m/ratings.dat'), 5)
-#msefile = open('mseresults.txt', 'a')
-#maefile = open('maeresults.txt', 'a')
+# Use cross validate for everything but the matrix factorization
+test_rmse, train_rmse, test_mae, train_mae = cross_validate(load_data('./ml-1m/ratings.dat'), 5)
+
+# Use this to run matrix factorization
 X = reform_matrix(load_data('./ml-1m/ratings.dat'))
 cross_validate_matrix(X)
-#msefile.close()
-#maefile.close()
-#run_matrix_fac(6040, 3706, 10, X, 100, 0.005, 0.05)   
+
