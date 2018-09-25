@@ -13,13 +13,7 @@ location = "./ml-1m/ratings.dat"
 np.random.seed(42)
 
 def load_data(location):
-    ratings=[]
-    f = open(location, 'r')
-    for line in f:
-        data = line.split('::')
-        ratings.append([int(z) for z in data[:3]])
-    f.close()
-    ratings=np.array(ratings)
+    ratings = np.genfromtxt(location, usecols=(0, 1, 2), delimiter="::", dtype="int")
     return ratings
 
 folds = 5
@@ -191,7 +185,7 @@ def update(U, M, X, X_est, lrate, regcof, test_values, test_set, train_values, t
     for i in range(len(X)):
         for j in range(len(X[i])):
             if X[i][j] > 0:
-                eij = X[i][j] - np.dot(U[i,:], M[:,j])
+                eij = X[i][j] - np.dot(U[i,:],M[:,j])
                 U[i,:] = U[i,:] + (lrate * (2 * eij * M[:,j] - regcof * U[i,:]))
                 M[:,j] = M[:,j] + (lrate * (2 * eij * U[i,:] - regcof * M[:,j]))
     X_est = np.matmul(U, M)
