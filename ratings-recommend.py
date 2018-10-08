@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+
 """
 Assignment 1: Recommender systems,
 Differences for different approaches to recommender systems were evaluated.
